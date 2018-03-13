@@ -84,9 +84,47 @@ func LocalIP() string {
 	return "Can't get local ip!"
 }
 
+func upload(w http.ResponseWriter, r *http.Request) {
+	Println("Method:", r.Method)
+	if r.Method == "GET" {
+		curtime := time.Now().Unix()
+		h := md5.New()
+		io.WriteString(h, strconv.FormatInt(curtime, 10))
+		token := Sprintf("%x", h.Sum(nil))
+
+		t, _ := template.ParseFiles("login.gtpl")
+		t.Execute(w, token)
+	} else {
+		// 把接收到的Form数据存储到内存或者临时文件中
+		// << 左移，相当于 (2^5)*(2^20)
+		r.ParseMultipartForm(32 << 20)
+		Println("MaxMemory:", 32 << 20)
+		//从指定key的input中，使用 FormFile获取文件句柄信息
+		file, handler, err := r.FormFile("uploadfile")
+		if err != nil {
+			log.Fatal("Form File:", err)
+			return
+		}
+		defer file.Close()
+		Fprintf(w, "%v", handler.Header)
+		// 本地打开要写入的文件句柄
+		f, err := os.OpenFile("./" + handler.Filename, os.O_WRONLY|os.O_CREATE, 0666)
+		Println("Handler Size：", handler.Size)
+		if err != nil {
+			log.Fatal("OpenFile:", err)
+			return
+		}
+		defer f.Close()
+		// 存储文件
+		io.Copy(f, file)
+		Fprintf(w,"File upload success!")
+	}
+}
+
 func main()  {
 	http.HandleFunc("/", sayhelloName3)
 	http.HandleFunc("/login", login)
+	http.HandleFunc("/upload", upload)
 	ip := LocalIP()
 	listenPort := 9090
 	log.Printf("Server running at http://%s:%d", ip, listenPort)
